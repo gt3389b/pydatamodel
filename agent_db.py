@@ -101,8 +101,9 @@ class Database:
             "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic.{i}."
         ]
 
-        logger = logging.getLogger(self.__class__.__name__)
-        logger.debug("Initializing the Database...")
+        logging.basicConfig(level=logging.DEBUG)
+        self._log = logging.getLogger(self.__class__.__name__)
+        self._log.debug("Initializing the Database...")
 
         # Retrieve the Implemented Data Model
         with open(dm_filename, "r") as dm_in_json:
@@ -110,7 +111,7 @@ class Database:
                 self._dm = json.load(dm_in_json)
             except ValueError as parse_err:
                 self._dm = {}
-                logger.error("Implemented Data Model is NOT properly formatted JSON: %s", parse_err)
+                self._log.error("Implemented Data Model is NOT properly formatted JSON: %s", parse_err)
 
         # Retrieve the Persisted Database
         with open(db_filename, "r") as db_in_json:
@@ -118,7 +119,7 @@ class Database:
                 self._db = json.load(db_in_json)
             except ValueError as parse_err:
                 self._db = {}
-                logger.error("Persisted Database is NOT properly formatted JSON: %s", parse_err)
+                self._log.error("Persisted Database is NOT properly formatted JSON: %s", parse_err)
 
     @DB_GET_SUMMARY_METRIC.time()
     def get(self, path):
@@ -156,7 +157,7 @@ class Database:
         """Change the value of the incoming path, or throw a NoSuchPathError"""
         if path in self._db:
             self._db[path] = value
-            self._save()
+            #self._save()
         else:
             raise NoSuchPathError(path)
 
@@ -165,16 +166,16 @@ class Database:
         """Retrieve a set of parameter paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
 
         # Turn the incoming path into a regex to validate it is in the implemented data model
         dm_regex_str = self._dm_regex(path, path.endswith("."))
-        logger.debug("find_params: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
+        self._log.debug("find_params: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
                      dm_regex_str, path)
 
         # Turn the incoming path into a regex to get the matching paths
         db_regex_str = self._db_regex(path, path.endswith("."))
-        logger.debug("find_params: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
+        self._log.debug("find_params: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
                      db_regex_str, path)
 
         # Validate that path is in the Implemented Data Model
@@ -217,17 +218,17 @@ class Database:
         """Retrieve a set of object instance paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
 
         if partial_path.endswith("."):
             # Turn the incoming path into a regex to validate it is in the implemented data model
             dm_regex_str = self._dm_regex(partial_path, True)
-            logger.debug("find_instances: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
+            self._log.debug("find_instances: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
                          dm_regex_str, partial_path)
 
             # Turn the incoming path into a regex to get the matching paths
             db_regex_str = self._db_regex(partial_path, True)
-            logger.debug("find_instances: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
+            self._log.debug("find_instances: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
                          db_regex_str, partial_path)
         else:
             raise NoSuchPathError(partial_path)
@@ -267,17 +268,17 @@ class Database:
         """Retrieve a set of instantiated object paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
 
         if partial_path.endswith("."):
             # Turn the incoming path into a regex to validate it is in the implemented data model
             dm_regex_str = self._dm_regex(partial_path, True)
-            logger.debug("find_objects: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
+            self._log.debug("find_objects: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
                          dm_regex_str, partial_path)
 
             # Turn the incoming path into a regex to get the matching paths
             db_regex_str = self._db_regex(partial_path, True)
-            logger.debug("find_objects: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
+            self._log.debug("find_objects: Using regex \"%s\" to retrieve values from the Database for Path [%s]",
                          db_regex_str, partial_path)
         else:
             raise NoSuchPathError(partial_path)
@@ -311,13 +312,13 @@ class Database:
         """Retrieve a set of implemented object paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
         generic_partial_path = self._generic_dm_path(partial_path)
 
         if partial_path.endswith("."):
             # Turn the incoming path into a regex to validate it is in the implemented data model
             dm_regex_str = self._dm_regex(partial_path, True)
-            logger.debug(
+            self._log.debug(
                 "find_impl_objects: Using regex \"%s\" to validate Path [%s] is in the Implemented Data Model",
                 dm_regex_str, partial_path)
         else:
@@ -329,7 +330,7 @@ class Database:
         # Validate that path is in the Implemented Data Model
         for dm_key in self._dm:
             if re.fullmatch(dm_regex_str, dm_key) is not None:
-                logger.debug("find_impl_objects: Found full match: %s", dm_key)
+                self._log.debug("find_impl_objects: Found full match: %s", dm_key)
                 found_key = None
                 key_parts = dm_key.split(".")
                 key_parts_len = len(key_parts)
@@ -340,7 +341,7 @@ class Database:
                         built_path = utils.PathHelper.build_path_from_parts(key_parts, partial_path_part_len)
                         found_key = built_path + key_parts[partial_path_part_len] + "."
                     else:
-                        logger.debug("find_impl_objects: key parts [%s] less than partial path parts [%s]",
+                        self._log.debug("find_impl_objects: key parts [%s] less than partial path parts [%s]",
                                      str(key_parts_len), str(partial_path_part_len + 1))
                 else:
                     inx = 0
@@ -352,12 +353,12 @@ class Database:
 
                 # Only add it to found_keys if we haven't done so already
                 if found_key is not None:
-                    logger.debug("find_impl_objects: Found key: %s", found_key)
+                    self._log.debug("find_impl_objects: Found key: %s", found_key)
                     if found_key not in found_keys:
-                        logger.debug("find_impl_objects: Found key [%s] not already in the list", found_key)
+                        self._log.debug("find_impl_objects: Found key [%s] not already in the list", found_key)
                         # Don't add the incoming partial_path
                         if not found_key == generic_partial_path:
-                            logger.debug("find_impl_objects: Adding found key [%s] to the list", found_key)
+                            self._log.debug("find_impl_objects: Adding found key [%s] to the list", found_key)
                             found_keys.append(found_key)
 
         # If the path is Valid then retrieve the matching paths
@@ -369,16 +370,17 @@ class Database:
     @DB_INSERT_SUMMARY_METRIC.time()
     def insert(self, partial_path):
         """Insert a new record in the table"""
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
 
         # Check to see if the returned list is not empty
         if self.find_impl_objects(partial_path, True):
             dm_regex_str = partial_path
             dm_regex_str = re.sub(r'\{(.+?)\}', '{i}', dm_regex_str)
             dm_regex_str = re.sub(r'\.\d+\.', '.{i}.', dm_regex_str)
-            logger.debug("insert: Using regex \"%s\" to validate Path [%s] is in the Supported Insert Path List",
+            self._log.debug("insert: Using regex \"%s\" to validate Path [%s] is in the Supported Insert Path List",
                          dm_regex_str, partial_path)
 
+            """
             if dm_regex_str in self._supported_insert_path_list:
                 next_inst_num_path = partial_path + "__NextInstNum__"
                 with self._new_inst_num_lock:
@@ -392,6 +394,7 @@ class Database:
                     raise NotImplementedError()
             else:
                 raise NoSuchPathError(partial_path)
+            """
         else:
             raise NoSuchPathError(partial_path)
 
@@ -400,14 +403,14 @@ class Database:
     @DB_DELETE_SUMMARY_METRIC.time()
     def delete(self, partial_path):
         """Remove an existing record from the table"""
-        logger = logging.getLogger(self.__class__.__name__)
+        #logger = logging.getLogger(self.__class__.__name__)
 
         # Check to see if the returned list is not empty
         if self.find_objects(partial_path):
             dm_regex_str = partial_path
             dm_regex_str = re.sub(r'\{(.+?)\}', '{i}', dm_regex_str)
             dm_regex_str = re.sub(r'\.\d+\.', '.{i}.', dm_regex_str)
-            logger.debug("delete: Using regex \"%s\" to validate Path [%s] is in the Supported Delete Path List",
+            self._log.debug("delete: Using regex \"%s\" to validate Path [%s] is in the Supported Delete Path List",
                          dm_regex_str, partial_path)
 
             if dm_regex_str in self._supported_delete_path_list:
@@ -487,6 +490,7 @@ def main():
     #print(db.get("Device.LocalAgent.MTPNumberOfEntries"))
     #print(db.find_params("Device.DeviceInfo."))
     #print(db.get("Device.DeviceInfo.Manufacturer"))
+    #print(db.insert("Device.LocalAgent."))
 
 if __name__ == "__main__":
     main()
