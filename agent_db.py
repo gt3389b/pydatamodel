@@ -87,7 +87,7 @@ DB_FIND_IMPL_OBJECTS_SUMMARY_METRIC = \
 
 class Database:
     """Represents a simple database"""
-    def __init__(self, dm_filename, db_filename, net_intf):
+    def __init__(self, dm_filename, db_filename, net_intf, debug=False):
         """Initialize the DB from a file"""
         self._net_intf = net_intf
         self._db_filename = db_filename
@@ -104,7 +104,8 @@ class Database:
             "Device.Test."
         ]
 
-        logging.basicConfig(level=logging.DEBUG)
+        if debug:
+            logging.basicConfig(level=logging.DEBUG)
         self._log = logging.getLogger(self.__class__.__name__)
         self._log.debug("Initializing the Database...")
 
@@ -154,6 +155,13 @@ class Database:
             raise NoSuchPathError(path)
 
         return value
+
+    def get_obj(self, partial_path):
+        results = {}
+        items = self.find_params(partial_path)
+        for item in items:
+            results[item] = self.get(item)
+        return results
 
     def _update(self, path, value):
         dm_param_path = self._generic_dm_path(path)
@@ -399,9 +407,10 @@ class Database:
                 with self._new_inst_num_lock:
                     try:
                         next_inst_num = self.get(next_inst_num_path)
+                        self._update(next_inst_num_path, next_inst_num+1)
                     except NoSuchPathError:
-                        next_inst_num = 0
-                    self._update(next_inst_num_path, next_inst_num + 1)
+                        next_inst_num = 1
+                        self._update(next_inst_num_path, next_inst_num)
                     self._save()
 
                 """
@@ -495,9 +504,34 @@ class NoSuchPathError(Exception):
         """Return the String value of the Exception"""
         return repr(self.value)
 
+class Agent(object):
+    def __init__(self, id):
+        self._id = id
+        self.db = Database("test-dm.json", "test-db.json", None)
+        pass
+
+    def Add(self, path, param_settings):
+        instance = self.db.insert(path)
+        for param_setting in param_settings:
+            self.db.update(path+str(instance)+'.'+param_setting['param'], param_setting['value'])
+        self.db._save()
+
+    def Set(self, path, value):
+        return self.db.update(path, value)
+
+    def Get(self, path):
+        return self.db.get(path)
+
+    def GetInstances(self, path):
+        return self.db.find_instances(path)
+
 def main():
     """Main Processing for USP Agent"""
-    db = Database("test-dm.json", "test-db.json", None)
+    a = Agent('test')
+    print(a.GetInstances("Device.Test."))
+    print(a.Add("Device.Test.", [{'param':'Russell', 'value':'test4'}]))
+    print(a.GetInstances("Device.Test."))
+    #db = Database("test-dm.json", "test-db.json", None)
     #print(db.find_params("Device.LocalAgent.MTP."))
     #print(db.find_impl_objects("Device.LocalAgent.MTP.", True))
     #print(db.get("Device.LocalAgent.MTPNumberOfEntries"))
@@ -505,15 +539,19 @@ def main():
     #print(db.get("Device.DeviceInfo.Manufacturer"))
     #print(db.insert("Device.LocalAgent."))
 
-    print(db.version())
+    #print(db.version())
     #print(db.get("Device.LocalAgent.UpTime"))
     #print(db.get("Device.LocalAgent.X_ARRIS-COM_IPAddr"))
     #print(db.find_impl_objects("Device.", True))
     #print(db.find_impl_objects("Device.Test.", True))
-    if not len(db.find_instances("Device.Test.")):
-        print(db.insert("Device.Test."))
-    print(db.update("Device.Test.1.Russell", "test2"))
-    db._save()
+    #print(db.find_instances("Device.Test."))
+    #if not len(db.find_instances("Device.Test.")):
+    #    print(db.insert("Device.Test."))
+    #print(db.update("Device.Test.1.Russell", "test2"))
+    #print(db.update("Device.Test2.Param", "test3"))
+    #db._save()
+
+    #pprint.pprint(db.get_obj("Device.Time."))
 
     # find all objects under path
     #pprint.pprint(db.find_impl_objects("Device.", False))
