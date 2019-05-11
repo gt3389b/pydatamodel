@@ -117,13 +117,8 @@ class Database:
                 self._dm = {}
                 self._log.error("Implemented Data Model is NOT properly formatted JSON: %s", parse_err)
 
-        # Retrieve the Persisted Database
-        with open(db_filename, "r") as db_in_json:
-            try:
-                self._db = json.load(db_in_json)
-            except ValueError as parse_err:
-                self._db = {}
-                self._log.error("Persisted Database is NOT properly formatted JSON: %s", parse_err)
+        #Load DB
+        self.reset()
 
     @DB_GET_SUMMARY_METRIC.time()
     def get(self, path):
@@ -151,6 +146,8 @@ class Database:
                 value = len(found_instances)
             else:
                 value = self._db[path]
+        elif path.endswith('.'):
+            value = self.get_obj(path)
         else:
             raise NoSuchPathError(path)
 
@@ -406,11 +403,10 @@ class Database:
                 print(next_inst_num_path)
                 with self._new_inst_num_lock:
                     try:
-                        next_inst_num = self.get(next_inst_num_path)
-                        self._update(next_inst_num_path, next_inst_num+1)
+                        next_inst_num = self.get(next_inst_num_path) + 1
                     except NoSuchPathError:
                         next_inst_num = 1
-                        self._update(next_inst_num_path, next_inst_num)
+                    self._update(next_inst_num_path, next_inst_num)
                     self._save()
 
                 """
@@ -492,6 +488,15 @@ class Database:
             with open(self._db_filename, "w") as db_file:
                 json.dump(self._db, db_file, indent=4)
 
+    def reset(self):
+        # Retrieve the Persisted Database
+        with open(self._db_filename, "r") as db_in_json:
+            try:
+                self._db = json.load(db_in_json)
+            except ValueError as parse_err:
+                self._db = {}
+                self._log.error("Persisted Database is NOT properly formatted JSON: %s", parse_err)
+
 
 class NoSuchPathError(Exception):
     """A Database NoSuchPath Error"""
@@ -511,16 +516,26 @@ class Agent(object):
         pass
 
     def Add(self, path, param_settings):
-        instance = self.db.insert(path)
+        instance_num = self.db.insert(path)
         for param_setting in param_settings:
-            self.db.update(path+str(instance)+'.'+param_setting['param'], param_setting['value'])
+            self.db.update(path+str(instance_num)+'.'+param_setting['param'], param_setting['value'])
         self.db._save()
+        return instance_num
 
-    def Set(self, path, value):
-        return self.db.update(path, value)
+    def Set(self, objs):
+        try:
+            for obj in objs:
+                for param in obj['param_settings']:
+                    self.db.update(obj['path']+param['param'], param['value'])
+            self.db._save()
+        except:
+            self.db.reset()
 
-    def Get(self, path):
-        return self.db.get(path)
+    def Get(self, paths):
+        result = {}
+        for path in paths:
+            result[path] = self.db.get(path)
+        return result
 
     def GetInstances(self, path):
         return self.db.find_instances(path)
@@ -528,33 +543,29 @@ class Agent(object):
 def main():
     """Main Processing for USP Agent"""
     a = Agent('test')
-    print(a.GetInstances("Device.Test."))
-    print(a.Add("Device.Test.", [{'param':'Russell', 'value':'test4'}]))
-    print(a.GetInstances("Device.Test."))
-    #db = Database("test-dm.json", "test-db.json", None)
-    #print(db.find_params("Device.LocalAgent.MTP."))
-    #print(db.find_impl_objects("Device.LocalAgent.MTP.", True))
-    #print(db.get("Device.LocalAgent.MTPNumberOfEntries"))
-    #print(db.find_params("Device.DeviceInfo."))
-    #print(db.get("Device.DeviceInfo.Manufacturer"))
-    #print(db.insert("Device.LocalAgent."))
-
-    #print(db.version())
-    #print(db.get("Device.LocalAgent.UpTime"))
-    #print(db.get("Device.LocalAgent.X_ARRIS-COM_IPAddr"))
-    #print(db.find_impl_objects("Device.", True))
-    #print(db.find_impl_objects("Device.Test.", True))
-    #print(db.find_instances("Device.Test."))
-    #if not len(db.find_instances("Device.Test.")):
-    #    print(db.insert("Device.Test."))
-    #print(db.update("Device.Test.1.Russell", "test2"))
-    #print(db.update("Device.Test2.Param", "test3"))
-    #db._save()
-
-    #pprint.pprint(db.get_obj("Device.Time."))
-
-    # find all objects under path
-    #pprint.pprint(db.find_impl_objects("Device.", False))
+    #print(a.GetInstances("Device.Test."))
+    ent_num = a.Add("Device.Test.", [{'param':'Russell', 'value':'test4'}])
+    #a.GetInstances("Device.Test.")):
+    pprint.pprint(a.Get(a.GetInstances("Device.Test.")))
+    a.Set([ {'path':"Device.Test."+str(ent_num)+".", 
+                   'param_settings': 
+                        [
+                            {'param':'Russell', 
+                             'value':'replaced'
+                             }
+                        ]
+                    }
+                ] )
+    a.Set([ {'path':"Device.Test.1.", 
+                   'param_settings': 
+                        [
+                            {'param':'Russell', 
+                             'value':'replaced2'
+                             }
+                        ]
+                    }
+            ] )
+    print(a.Get(["Device.Test."+str(ent_num)+".Russell"]))
 
 if __name__ == "__main__":
     main()
