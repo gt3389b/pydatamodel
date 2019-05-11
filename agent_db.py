@@ -94,11 +94,14 @@ class Database:
         self._file_write_lock = threading.Lock()
         self._new_inst_num_lock = threading.Lock()
         self._start_time = time.time()
+
         self._supported_insert_path_list = [
-            "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic."
+            "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic.",
+            "Device.Test."
         ]
         self._supported_delete_path_list = [
-            "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic.{i}."
+            "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic.{i}.",
+            "Device.Test."
         ]
 
         logging.basicConfig(level=logging.DEBUG)
@@ -152,12 +155,21 @@ class Database:
 
         return value
 
+    def _update(self, path, value):
+        dm_param_path = self._generic_dm_path(path)
+
+        # Validate that path is in the Implemented Data Model
+        if dm_param_path in self._dm:
+            self._db[path] = value
+            #self._save()
+        else:
+            raise NoSuchPathError(path)
+
     @DB_UPDATE_SUMMARY_METRIC.time()
     def update(self, path, value):
         """Change the value of the incoming path, or throw a NoSuchPathError"""
-        if path in self._db:
-            self._db[path] = value
-            #self._save()
+        if self.is_param_writable(path):
+            self._update(path, value)
         else:
             raise NoSuchPathError(path)
 
@@ -166,7 +178,6 @@ class Database:
         """Retrieve a set of parameter paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        #logger = logging.getLogger(self.__class__.__name__)
 
         # Turn the incoming path into a regex to validate it is in the implemented data model
         dm_regex_str = self._dm_regex(path, path.endswith("."))
@@ -198,6 +209,9 @@ class Database:
             raise NoSuchPathError(path)
 
         return found_keys
+    
+    def version(self):
+        return "1.0"
 
     def is_param_writable(self, param_path):
         """Validate whether the supplied parameter path is readWrite (return True)"""
@@ -218,7 +232,6 @@ class Database:
         """Retrieve a set of object instance paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        #logger = logging.getLogger(self.__class__.__name__)
 
         if partial_path.endswith("."):
             # Turn the incoming path into a regex to validate it is in the implemented data model
@@ -268,7 +281,6 @@ class Database:
         """Retrieve a set of instantiated object paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        #logger = logging.getLogger(self.__class__.__name__)
 
         if partial_path.endswith("."):
             # Turn the incoming path into a regex to validate it is in the implemented data model
@@ -312,7 +324,6 @@ class Database:
         """Retrieve a set of implemented object paths that match the incoming path"""
         found_keys = []
         is_implemented_path = False
-        #logger = logging.getLogger(self.__class__.__name__)
         generic_partial_path = self._generic_dm_path(partial_path)
 
         if partial_path.endswith("."):
@@ -341,7 +352,8 @@ class Database:
                         built_path = utils.PathHelper.build_path_from_parts(key_parts, partial_path_part_len)
                         found_key = built_path + key_parts[partial_path_part_len] + "."
                     else:
-                        self._log.debug("find_impl_objects: key parts [%s] less than partial path parts [%s]",
+                        print(key_parts)
+                        self._log.debug("find_impl_objects: key parts [%s] less than/equal partial path parts [%s]",
                                      str(key_parts_len), str(partial_path_part_len + 1))
                 else:
                     inx = 0
@@ -370,9 +382,9 @@ class Database:
     @DB_INSERT_SUMMARY_METRIC.time()
     def insert(self, partial_path):
         """Insert a new record in the table"""
-        #logger = logging.getLogger(self.__class__.__name__)
 
         # Check to see if the returned list is not empty
+        self._log.debug("insert: find %s", partial_path)
         if self.find_impl_objects(partial_path, True):
             dm_regex_str = partial_path
             dm_regex_str = re.sub(r'\{(.+?)\}', '{i}', dm_regex_str)
@@ -380,21 +392,27 @@ class Database:
             self._log.debug("insert: Using regex \"%s\" to validate Path [%s] is in the Supported Insert Path List",
                          dm_regex_str, partial_path)
 
-            """
             if dm_regex_str in self._supported_insert_path_list:
-                next_inst_num_path = partial_path + "__NextInstNum__"
+                #next_inst_num_path = partial_path + "__NextInstNum__"
+                next_inst_num_path = partial_path[:-1] + "NumberOfEntries"
+                print(next_inst_num_path)
                 with self._new_inst_num_lock:
-                    next_inst_num = self.get(next_inst_num_path)
-                    self.update(next_inst_num_path, next_inst_num + 1)
+                    try:
+                        next_inst_num = self.get(next_inst_num_path)
+                    except NoSuchPathError:
+                        next_inst_num = 0
+                    self._update(next_inst_num_path, next_inst_num + 1)
+                    self._save()
 
+                """
                 if dm_regex_str == "Device.Services.HomeAutomation.{i}.Camera.{i}.Pic.":
                     self._db[partial_path + str(next_inst_num) + ".URL"] = ""
                     self._save()
                 else:
                     raise NotImplementedError()
+                """
             else:
                 raise NoSuchPathError(partial_path)
-            """
         else:
             raise NoSuchPathError(partial_path)
 
@@ -403,7 +421,6 @@ class Database:
     @DB_DELETE_SUMMARY_METRIC.time()
     def delete(self, partial_path):
         """Remove an existing record from the table"""
-        #logger = logging.getLogger(self.__class__.__name__)
 
         # Check to see if the returned list is not empty
         if self.find_objects(partial_path):
@@ -464,7 +481,7 @@ class Database:
         """Save the contents of the DB back into the File"""
         with self._file_write_lock:
             with open(self._db_filename, "w") as db_file:
-                json.dump(self._db, db_file)
+                json.dump(self._db, db_file, indent=4)
 
 
 class NoSuchPathError(Exception):
@@ -483,14 +500,23 @@ def main():
     db = Database("test-dm.json", "test-db.json", None)
     #print(db.find_params("Device.LocalAgent.MTP."))
     #print(db.find_impl_objects("Device.LocalAgent.MTP.", True))
-    print(db.get("Device.LocalAgent.UpTime"))
-    print(db.get("Device.LocalAgent.X_ARRIS-COM_IPAddr"))
-    print(db.find_impl_objects("Device.", True))
-    pprint.pprint(db.find_impl_objects("Device.", False))
     #print(db.get("Device.LocalAgent.MTPNumberOfEntries"))
     #print(db.find_params("Device.DeviceInfo."))
     #print(db.get("Device.DeviceInfo.Manufacturer"))
     #print(db.insert("Device.LocalAgent."))
+
+    print(db.version())
+    #print(db.get("Device.LocalAgent.UpTime"))
+    #print(db.get("Device.LocalAgent.X_ARRIS-COM_IPAddr"))
+    #print(db.find_impl_objects("Device.", True))
+    #print(db.find_impl_objects("Device.Test.", True))
+    if not len(db.find_instances("Device.Test.")):
+        print(db.insert("Device.Test."))
+    print(db.update("Device.Test.1.Russell", "test2"))
+    db._save()
+
+    # find all objects under path
+    #pprint.pprint(db.find_impl_objects("Device.", False))
 
 if __name__ == "__main__":
     main()
