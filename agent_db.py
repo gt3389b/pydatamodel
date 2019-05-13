@@ -515,12 +515,20 @@ class Agent(object):
         self.db = Database("test-dm.json", "test-db.json", None)
         pass
 
-    def Add(self, path, param_settings):
-        instance_num = self.db.insert(path)
-        for param_setting in param_settings:
-            self.db.update(path+str(instance_num)+'.'+param_setting['param'], param_setting['value'])
-        self.db._save()
-        return instance_num
+    def Add(self, create_objs):
+        created = {}
+        for obj in create_objs:
+            path = obj['path']
+            param_settings = obj['param_settings']
+            instance_num = self.db.insert(path)
+            for param_setting in param_settings:
+                self.db.update(path+str(instance_num)+'.'+param_setting['param'], param_setting['value'])
+            self.db._save()
+            created[obj['path']] = instance_num
+        return created
+
+    def Delete(self, paths):
+        raise Exception("Delete is not implemented")
 
     def Set(self, objs):
         try:
@@ -543,9 +551,7 @@ class Agent(object):
 def main():
     """Main Processing for USP Agent"""
     a = Agent('test')
-    #print(a.GetInstances("Device.Test."))
-    ent_num = a.Add("Device.Test.", [{'param':'Russell', 'value':'test4'}])
-    #a.GetInstances("Device.Test.")):
+    ent_num = a.Add([{'path':'Device.Test.', 'param_settings':[{'param':'Russell', 'value':'test4'}] }])['Device.Test.']
     pprint.pprint(a.Get(a.GetInstances("Device.Test.")))
     a.Set([ {'path':"Device.Test."+str(ent_num)+".", 
                    'param_settings': 

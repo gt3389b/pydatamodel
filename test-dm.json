@@ -67,5 +67,8 @@
 	"Device.STOMP.Connection.{i}.EnableHeartbeats" : "readWrite",
 	"Device.STOMP.Connection.{i}.OutgoingHeartbeat" : "readWrite",
 	"Device.STOMP.Connection.{i}.IncomingHeartbeat" : "readWrite",
-	"Device.STOMP.Connection.{i}.IsEncrypted" : "readOnly"
+	"Device.STOMP.Connection.{i}.IsEncrypted" : "readOnly",
+	"Device.TestNumberOfEntries": "readOnly",
+	"Device.Test.{i}.Russell" : "readWrite",
+	"Device.Test2.Param" : "readWrite"
 }
