@@ -126,7 +126,7 @@ class DataModel(object):
 
     def parseParams(self, params):
         items = {}
-        pprint.pprint(params)
+        #pprint.pprint(params)
         if isinstance(params, list):
             for param in params:
                 if '@name' in param:
@@ -145,7 +145,6 @@ class DataModel(object):
         for dtype in self._dm['document']['dataType']:
             d = DataType()
             d.from_dict(dtype)
-            print(d)
 
         for model in self._dm['document']['model']['object']:
             #m = Model()
@@ -190,10 +189,45 @@ class DataModel(object):
                     print("UNKNOWN KEY:  "+key+"  VALUE: "+str(model[key]))
             self._model[model['@name']] = data 
 
-        pprint.pprint(self._model)
+    def find_path_attrs(self, partial_path):
+        if partial_path.endswith("."):
+            # Turn the incoming path into a regex to validate it is in the implemented data model
+            dm_regex_str = self._dm_regex(partial_path, True)
+            print(dm_regex_str)
+        print(self._generic_dm_path(partial_path))
+
+    def _dm_regex(self, path, partial_path):
+        """Generate a regex for determining whether or not a path is in the DM"""
+        dm_regex_str = "^" + path  # Starts with
+        dm_regex_str = re.sub(r'\.[0-9]+\.', r'.{i}.', dm_regex_str)  # Instance Number Addressing
+        dm_regex_str = re.sub(r'\.\*\.', r'.{i}.', dm_regex_str)  # Wild-card Searching
+        dm_regex_str = re.sub(r'\.', r'\.', dm_regex_str)  # Replace '.' with explicit '.' search
+
+        if partial_path:
+            dm_regex_str = dm_regex_str + ".*"
+
+        return dm_regex_str
+
+    def _generic_dm_path(self, path):
+        """Turn a DM Path into a Generic one by replacing instance numbers and wildcards"""
+        generic_path = re.sub(r'\.[0-9]+\.', r'.{i}.', path)  # Instance Number Addressing
+        generic_path = re.sub(r'\.\*\.', r'.{i}.', generic_path)  # Wild-card Searching
+
+    def _strip_path(self, path):
+        obj_path = re.sub(r'\.*\.([^\.]*)$', r'.', path)
+        param = re.findall(r'\.*\.([^\.]*)$', path)
+        return (obj_path, param[0])
 
 def main():
     dm = DataModel("dm.json", True)
+    #dm.find_path_attrs('Device.')
+    #dm.find_path_attrs('Device.2.test2')
+    #dm.find_path_attrs('Device.2.')
+    #dm.find_path_attrs('Device.{i}.test2')
+    #print(re.sub(r'\.*\.([^\.]*)$', "Device."))
+    print(dm._strip_path("Device.Russell.{i}.Test"))
+    print(dm._strip_path("Device.Russell.{i}."))
+    print(dm._strip_path("Device.Russell.Test2"))
 
 if __name__ == "__main__":
     main()
