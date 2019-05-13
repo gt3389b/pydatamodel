@@ -125,19 +125,24 @@ class DataModel(object):
         self.parseJson()
 
     def parseParams(self, params):
-        items = {}
+        items = []
         #pprint.pprint(params)
         if isinstance(params, list):
             for param in params:
+                item = {}
                 if '@name' in param:
                     #pprint.pprint(param)
-                    items['name'] = param['@name']
-                    items['access'] = param['@access']
+                    item['name'] = param['@name']
+                    item['access'] = param['@access']
+                items.append(item)
+
         else:
             if '@name' in params:
+                item = {}
                 #pprint.pprint(param)
-                items['name'] = params['@name']
-                items['access'] = params['@access']
+                item['name'] = params['@name']
+                item['access'] = params['@access']
+                items.append(item)
         return items
 
     def parseJson(self):
@@ -189,12 +194,17 @@ class DataModel(object):
                     print("UNKNOWN KEY:  "+key+"  VALUE: "+str(model[key]))
             self._model[model['@name']] = data 
 
-    def find_path_attrs(self, partial_path):
-        if partial_path.endswith("."):
-            # Turn the incoming path into a regex to validate it is in the implemented data model
-            dm_regex_str = self._dm_regex(partial_path, True)
-            print(dm_regex_str)
-        print(self._generic_dm_path(partial_path))
+    def find_path_attrs(self, path):
+        partial_path, param = self._strip_path(path)
+
+        param_dict = {x['name']: x for x in self._model[partial_path]['parameter']}
+
+        if not param:
+            pprint.pprint(self._model[partial_path])
+        else:
+            pprint.pprint(param_dict[param])
+
+        return (partial_path, param)
 
     def _dm_regex(self, path, partial_path):
         """Generate a regex for determining whether or not a path is in the DM"""
@@ -225,9 +235,8 @@ def main():
     #dm.find_path_attrs('Device.2.')
     #dm.find_path_attrs('Device.{i}.test2')
     #print(re.sub(r'\.*\.([^\.]*)$', "Device."))
-    print(dm._strip_path("Device.Russell.{i}.Test"))
-    print(dm._strip_path("Device.Russell.{i}."))
-    print(dm._strip_path("Device.Russell.Test2"))
+    print(dm.find_path_attrs("Device.DeviceInfo.DeviceCategory"))
+    print(dm.find_path_attrs("Device.DeviceInfo."))
 
 if __name__ == "__main__":
     main()
