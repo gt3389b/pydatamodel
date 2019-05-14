@@ -134,6 +134,7 @@ class DataModel(object):
                     #pprint.pprint(param)
                     item['name'] = param['@name']
                     item['access'] = param['@access']
+                    item['syntax'] = param['syntax']
                 items.append(item)
 
         else:
@@ -142,6 +143,7 @@ class DataModel(object):
                 #pprint.pprint(param)
                 item['name'] = params['@name']
                 item['access'] = params['@access']
+                item['syntax'] = params['syntax']
                 items.append(item)
         return items
 
