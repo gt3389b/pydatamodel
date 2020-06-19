@@ -1,0 +1,2 @@
+Device.DeviceInfo.X_COMCAST-COM_CM_MAC
+Device.WiFi.AccessPoint.
