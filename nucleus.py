@@ -53,8 +53,16 @@ from collections import defaultdict
 #from cachier import cachier
 import datetime
 import pprint
+from cachier import cachier
+import datetime
+
 
 load_dotenv()
+
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
 
 # pylint: disable-msg=no-value-for-parameter
 """
@@ -230,12 +238,19 @@ class NucleusDevice(object):
         self._mac = mac
         self._db = Database("erdk-dm.json", base_url, creds, None)
 
-    #@cachier(stale_after=datetime.timedelta(minutes=60))
     def get(self):
         def dd_to_dict(d):
             if isinstance(d, defaultdict):
                 d = {k: dd_to_dict(v) for k, v in d.items()}
             return d
+
+        def get_path(path, master_dict):
+            query_result = self._db.get(self._mac, path)
+            for entry in query_result:
+                keys = entry.split('.')
+                lastplace = functools.reduce(operator.getitem, keys[:-1], master_dict)
+                lastplace[keys[-1]] = query_result[entry]
+            return master_dict
 
         dict_result = {}
 
@@ -243,22 +258,28 @@ class NucleusDevice(object):
         dict_result = infinitedict()
 
 
-        path="Device.DeviceInfo.X_COMCAST-COM_CM_MAC"
-        query_result = self._db.get(self._mac, path)
-        for entry in query_result:
-            keys = entry.split('.')
-            lastplace = functools.reduce(operator.getitem, keys[:-1], dict_result)
-            lastplace[keys[-1]] = query_result[entry]
-
-        path="Device.WiFi.AccessPoint."
-        query_result = self._db.get(self._mac, path)
-        for entry in query_result:
-            keys = entry.split('.')
-            lastplace = functools.reduce(operator.getitem, keys[:-1], dict_result)
-            lastplace[keys[-1]] = query_result[entry]
+        for path in ['Device.DeviceInfo.X_COMCAST-COM_CM_MAC', "Device.WiFi.AccessPoint."]:
+            dict_result = get_path(path, dict_result)
 
         return str(json.dumps(dd_to_dict(dict_result)))
 
+    def __repr__(self):
+        return 'device_'+self._mac
+
+@cachier(stale_after=datetime.timedelta(minutes=1))
+def get_device_twin(base_url, creds, mac):
+    nd = NucleusDevice(base_url, creds, mac)
+    return nd.get()
+
+@app.route('/device/<mac>')
+def get_device_info(mac):
+    creds = os.getenv("TOKEN")
+    base_url = os.getenv("BASE_URL")
+    try:
+        result = get_device_twin(base_url, creds, mac)
+    except:
+        return {'message':'ERROR:  Device does not exist'}
+    return result
 
 def main():
     creds = os.getenv("TOKEN")
@@ -266,9 +287,10 @@ def main():
     mac="B827EB5DF064"
     mac="b827eba77b12"
     mac="b827eb112233"
+    #mac="000000000001"
 
-    nd = NucleusDevice(base_url, creds, mac)
-    print(nd.get())
+    print(get_device_twin(base_url, creds, mac))
 
 if __name__ == "__main__":
-    main()
+    app.run()
+    #main()
