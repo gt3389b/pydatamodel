@@ -150,6 +150,7 @@ class Database:
        if r.status_code == 200:
           return self._process_webpa_resp(r.json()['parameters'][0])
        else:
+          print(r.status_code, r.text)
           return None
 
     #@DB_GET_SUMMARY_METRIC.time()
@@ -231,20 +232,43 @@ class NucleusDevice(object):
 
     #@cachier(stale_after=datetime.timedelta(minutes=60))
     def get(self):
+        def dd_to_dict(d):
+            if isinstance(d, defaultdict):
+                d = {k: dd_to_dict(v) for k, v in d.items()}
+            return d
+
+        dict_result = {}
+
+        infinitedict = lambda: defaultdict(infinitedict)
+        dict_result = infinitedict()
+
+
         path="Device.DeviceInfo.X_COMCAST-COM_CM_MAC"
-        self._db.get(self._mac, path)
+        query_result = self._db.get(self._mac, path)
+        for entry in query_result:
+            keys = entry.split('.')
+            lastplace = functools.reduce(operator.getitem, keys[:-1], dict_result)
+            lastplace[keys[-1]] = query_result[entry]
 
         path="Device.WiFi.AccessPoint."
-        return self._db.get(self._mac, path)
+        query_result = self._db.get(self._mac, path)
+        for entry in query_result:
+            keys = entry.split('.')
+            lastplace = functools.reduce(operator.getitem, keys[:-1], dict_result)
+            lastplace[keys[-1]] = query_result[entry]
+
+        return str(json.dumps(dd_to_dict(dict_result)))
 
 
 def main():
     creds = os.getenv("TOKEN")
     base_url = os.getenv("BASE_URL")
     mac="B827EB5DF064"
+    mac="b827eba77b12"
+    mac="b827eb112233"
 
     nd = NucleusDevice(base_url, creds, mac)
-    pprint.pprint(nd.get())
+    print(nd.get())
 
 if __name__ == "__main__":
     main()
