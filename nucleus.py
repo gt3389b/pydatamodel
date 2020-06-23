@@ -128,53 +128,62 @@ class Database:
     def _process_webpa_resp(self, webpa_parameters):
         result = {}
 
-        if webpa_parameters['parameterCount'] > 1:
-            for entry in webpa_parameters['value']:
-                if entry['dataType'] == 2:
+        for parameter in webpa_parameters:
+            if parameter['parameterCount'] > 1:
+                for entry in parameter['value']:
+                    if entry['dataType'] == 2:
+                        #print("%s:%d" % (entry['name'], int(entry['value'])))
+                        result[entry['name']]= int(entry['value'])
+                    else:
+                        if entry['value'] == "":
+                            result[entry['name']]= ""
+                        else:
+                            #print("%s:%s" % (entry['name'], entry['value']))
+                            result[entry['name']]= entry['value']
+            else:
+                if parameter['dataType'] == 2:
                     #print("%s:%d" % (entry['name'], int(entry['value'])))
-                    result[entry['name']]= int(entry['value'])
+                    result[parameter['name']]= int(parameter['value'])
                 else:
-                    if entry['value'] == "":
-                        result[entry['name']]= ""
+                    if parameter['value'] == "":
+                        result[parameter['name']]= ""
                     else:
                         #print("%s:%s" % (entry['name'], entry['value']))
-                        result[entry['name']]= entry['value']
-        else:
-            if webpa_parameters['dataType'] == 2:
-                #print("%s:%d" % (entry['name'], int(entry['value'])))
-                result[webpa_parameters['name']]= int(webpa_parameters['value'])
-            else:
-                if webpa_parameters['value'] == "":
-                    result[webpa_parameters['name']]= ""
-                else:
-                    #print("%s:%s" % (entry['name'], entry['value']))
-                    result[webpa_parameters['name']]= webpa_parameters['value']
+                        result[parameter['name']]= parameter['value']
         return result
 
-    def _get_webpa(self, mac, path):
-       r = requests.get(self._base_url +"mac:"+ mac +"/config?names="+ path, headers={'Authorization':'Basic '+self._creds})
+    def _get_webpa(self, mac, paths):
+       r = requests.get(self._base_url +"mac:"+ mac +"/config?names="+ paths, headers={'Authorization':'Basic '+self._creds})
        #print(name, r.text)
        if r.status_code == 200:
-          return self._process_webpa_resp(r.json()['parameters'][0])
+          return self._process_webpa_resp(r.json()['parameters'])
        elif r.status_code == 520:
-          print(r.status_code, r.text, path)
+          print(r.status_code, r.text, paths)
           return []
        else:
-          print(r.status_code, r.text, path)
+          print(r.status_code, r.text, paths)
           return None
 
     #@DB_GET_SUMMARY_METRIC.time()
-    def get(self, mac, path):
+    def get(self, mac, paths):
         """Retrieve the value of the incoming path, or throw a NoSuchPathError"""
         value = None
 
-        if path in self._db:
+        value = self._get_webpa(mac, paths)
+
+        # when there are multiple paths, the server doesn't tell you which one failed
+        if value == None:
+            raise NoSuchPathError(paths)
+
+        """
+        if paths in self._db:
             value = self._db[path]
         else:
             value = self._get_webpa(mac, path)
 
             if value == None:
                 raise NoSuchPathError(path)
+        """
 
         return value
 
@@ -246,8 +255,10 @@ class NucleusDevice(object):
                 d = {k: dd_to_dict(v) for k, v in d.items()}
             return d
 
-        def get_path(path, master_dict):
-            query_result = self._db.get(self._mac, path)
+        def get_path(paths, master_dict):
+
+            query_result = self._db.get(self._mac, paths)
+
             for entry in query_result:
                 keys = entry.split('.')
                 lastplace = functools.reduce(operator.getitem, keys[:-1], master_dict)
@@ -259,7 +270,7 @@ class NucleusDevice(object):
         infinitedict = lambda: defaultdict(infinitedict)
         dict_result = infinitedict()
 
-
+        """
         for path in ['Device.DeviceInfo.X_COMCAST-COM_CM_MAC', 
                 'Device.DeviceInfo.X_CISCO_COM_BootloaderVersion',
                 'Device.DeviceInfo.X_CISCO_COM_FirmwareName',
@@ -281,6 +292,27 @@ class NucleusDevice(object):
                 #"Device.WiFi.AccessPoint."]:
                 ]:
             dict_result = get_path(path, dict_result)
+        """
+        #paths = ','.join(['Device.DeviceInfo.X_COMCAST-COM_CM_MAC','Device.DeviceInfo.X_CISCO_COM_BootloaderVersion'])
+        paths =','.join(['Device.DeviceInfo.X_COMCAST-COM_CM_MAC', 
+                'Device.DeviceInfo.X_CISCO_COM_BootloaderVersion',
+                'Device.DeviceInfo.X_CISCO_COM_FirmwareName',
+                'Device.DeviceInfo.X_CISCO_COM_FirmwareBuildTime',
+                'Device.DeviceInfo.Hardware',
+                'Device.DeviceInfo.Manufacturer',
+                'Device.DeviceInfo.ModelName',
+                'Device.DeviceInfo.Description',
+                'Device.DeviceInfo.ProductClass',
+                'Device.DeviceInfo.SerialNumber',
+                'Device.DeviceInfo.HardwareVersion',
+                'Device.DeviceInfo.SoftwareVersion',
+                'Device.DeviceInfo.UpTime',
+                'Device.Bridging.Bridge.',
+                'Device.Ethernet.',
+                'Device.WiFi.',
+                'Device.Hosts.'])
+
+        dict_result = get_path(paths, dict_result)
 
         return str(json.dumps(dd_to_dict(dict_result)))
 
