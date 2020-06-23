@@ -50,7 +50,6 @@ from dotenv import load_dotenv
 import operator
 import functools
 from collections import defaultdict
-#from cachier import cachier
 import datetime
 import pprint
 from cachier import cachier
@@ -157,8 +156,11 @@ class Database:
        #print(name, r.text)
        if r.status_code == 200:
           return self._process_webpa_resp(r.json()['parameters'][0])
+       elif r.status_code == 520:
+          print(r.status_code, r.text, path)
+          return []
        else:
-          print(r.status_code, r.text)
+          print(r.status_code, r.text, path)
           return None
 
     #@DB_GET_SUMMARY_METRIC.time()
@@ -171,7 +173,7 @@ class Database:
         else:
             value = self._get_webpa(mac, path)
 
-            if not value:
+            if value == None:
                 raise NoSuchPathError(path)
 
         return value
@@ -258,7 +260,26 @@ class NucleusDevice(object):
         dict_result = infinitedict()
 
 
-        for path in ['Device.DeviceInfo.X_COMCAST-COM_CM_MAC', "Device.WiFi.AccessPoint."]:
+        for path in ['Device.DeviceInfo.X_COMCAST-COM_CM_MAC', 
+                'Device.DeviceInfo.X_CISCO_COM_BootloaderVersion',
+                'Device.DeviceInfo.X_CISCO_COM_FirmwareName',
+                'Device.DeviceInfo.X_CISCO_COM_FirmwareBuildTime',
+                'Device.DeviceInfo.Hardware',
+                'Device.DeviceInfo.Manufacturer',
+                'Device.DeviceInfo.ModelName',
+                'Device.DeviceInfo.Description',
+                'Device.DeviceInfo.ProductClass',
+                'Device.DeviceInfo.SerialNumber',
+                'Device.DeviceInfo.HardwareVersion',
+                'Device.DeviceInfo.SoftwareVersion',
+                'Device.DeviceInfo.UpTime',
+                'Device.Bridging.Bridge.',
+                'Device.Ethernet.',
+                'Device.WiFi.',
+                'Device.Hosts.',
+                #'Device.DeviceInfo.X_RDKCENTRAL-COM_xOpsDeviceMgmt.Mesh.',
+                #"Device.WiFi.AccessPoint."]:
+                ]:
             dict_result = get_path(path, dict_result)
 
         return str(json.dumps(dd_to_dict(dict_result)))
@@ -266,7 +287,7 @@ class NucleusDevice(object):
     def __repr__(self):
         return 'device_'+self._mac
 
-@cachier(stale_after=datetime.timedelta(minutes=1))
+@cachier(stale_after=datetime.timedelta(seconds=10))
 def get_device_twin(base_url, creds, mac):
     nd = NucleusDevice(base_url, creds, mac)
     return nd.get()
@@ -276,6 +297,7 @@ def get_device_info(mac):
     creds = os.getenv("TOKEN")
     base_url = os.getenv("BASE_URL")
     try:
+        get_device_twin.clear_cache()
         result = get_device_twin(base_url, creds, mac)
     except:
         return {'message':'ERROR:  Device does not exist'}
@@ -289,6 +311,7 @@ def main():
     mac="b827eb112233"
     #mac="000000000001"
 
+    get_device_twin.clear_cache()
     print(get_device_twin(base_url, creds, mac))
 
 if __name__ == "__main__":
